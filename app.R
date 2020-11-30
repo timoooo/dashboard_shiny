@@ -8,19 +8,24 @@ get_countries<-function(df){
   return (df)
 }
 
+get_food_cat<-function(df){
+  df<-df%>%select(food_category)%>% unique() %>% arrange(country)
+  return (df)
+}
+
 df <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-02-18/food_consumption.csv')
 
 
 ui <- dashboardPage(
   dashboardHeader(title = "Food consumption dashboard"),
   dashboardSidebar(    sidebarMenu(
-    menuItem("Plot 1", tabName = "dashboard", icon = icon("dashboard")),
-    menuItem("Widgets", tabName = "widgets", icon = icon("th"))
+    menuItem("Plot by nation", tabName = "plotbynation", icon = icon("dashboard")),
+    menuItem("Plot by food category", tabName = "plotbyfoodcat", icon = icon("th"))
   )),
   dashboardBody(
     tabItems(
       # First tab content
-      tabItem(tabName = "dashboard",
+      tabItem(tabName = "plotbynation",
               h2("Consumption of food by Country"),
               
               fluidRow(
@@ -32,12 +37,19 @@ ui <- dashboardPage(
                               choices = get_countries(df),selected = "Austria")
                 )
               )
-      ),
+      )
       
       # Second tab content
-      tabItem(tabName = "widgets",
-              h2("Widgets tab content")
-      )
+      # tabItem(tabName = "plotbyfoodcat",
+      #         h2("Consumption of food by food category"),
+      #         fluidRow(
+      #           box(plotOutput("plot2", height = 500)),
+      #           box(title = "Select a category",
+      #               selectInput("foodcat","Food category: ",
+      #                           choices = get_food_cat(df),
+      #                           selected = "Beef"
+      #                           )))
+     # )
     )
   )
 )
@@ -55,6 +67,16 @@ server <- function(input, output) {
             legend.title=element_blank())
   })
   
+    output$plot2<-renderPlot({
+      df<-food_consumption%>%filter(country==input$country) 
+      ggplot(df,aes(food_category,consumption,fill=food_category))+
+        geom_bar(stat="identity")+
+        theme(axis.title.x=element_blank(),
+              axis.text.x=element_blank(),
+              axis.ticks.x=element_blank(),
+              legend.title=element_blank())
+    })
+    
   
 }
 

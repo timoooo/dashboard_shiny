@@ -13,15 +13,18 @@ food_consumption %>%group_by(food_category)
 
 df<-food_consumption%>%filter(country=="Argentina") 
 
-ggplot(df,aes(food_category,consumption)) +
-  geom_bar(stat="identity")
+ggplot(df,aes(food_category,consumption,fill=food_category)) +
+  geom_bar(stat="identity") +
+  theme(axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank())
 
+df <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-02-18/food_consumption.csv')
 
-x<-food_consumption%>%select(country)
+df<-food_consumption%>%filter(food_category=="Beef") %>% arrange(desc(consumption))
 
-
-unique(x)
-
-
-
-get_countries(food_consumption)
+ggplot(df,aes(country,consumption,fill=country)) +
+  geom_point() +
+  theme(axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank())
