@@ -75,16 +75,16 @@ get_full_dataset<-function(){
   return(enrich_data_with_countries(df,countries))
 }
 
-get_country_df<-function(my_country){
+get_country_df<-function(full_df,my_country){
   
-  full_df<-get_full_dataset()
+  
   countrydf<-full_df%>%filter(country==my_country)%>%select(-1) %>% arrange(food_category)
   return(countrydf)
 }
 # emission in [Kg CO2/person/year]
 # consumption in [kg/person/year]
-generate_popup_content_view<-function(country){
-  countrydf<-get_country_df(country)
+generate_popup_content_view<-function(full_df,country){
+  countrydf<-get_country_df(full_df,country)
   content<-paste0("<b>",country,"</b><br/>","<table>
 <thead>
   <tr>
@@ -162,7 +162,7 @@ get_compromised_dataset<-function(df){
 }
 
 
-enrich_leaflet_map_with_markers<-function(leafletobj){
+enrich_leaflet_map_with_markers<-function(full_df,leafletobj){
   greenLeafIcon <- makeIcon(
     iconUrl = "http://leafletjs.com/examples/custom-icons/leaf-green.png",
     iconWidth = 38, iconHeight = 95,
@@ -177,30 +177,30 @@ enrich_leaflet_map_with_markers<-function(leafletobj){
   index = 1
   for(country in country_data$country){
     m<-addMarkers(m,lng = country_data$lng[index],lat=country_data$lat[index],
-                    popup = generate_popup_content_view(country), icon = greenLeafIcon)
+                    popup = generate_popup_content_view(full_df,country), icon = greenLeafIcon)
     index = index+1
   }
   
   return(m)
 }
 
+generate_leaflet_map<-function(){
+  full_df<-get_full_dataset()
+  data_regions <- full_df%>%get_countries()
+  mapStates <-maps::map("world",
+                        regions = data_regions$country,
+                        fill=T)
+  
+  
+  my_map <-leaflet(data = mapStates, options = leafletOptions(minZoom = 2, maxZoom = 5)) %>%
+    addTiles() %>%
+    addPolygons(fillColor = topo.colors(10, alpha = NULL), stroke = FALSE)
+  
+  my_map<-enrich_leaflet_map_with_markers(full_df,my_map)
+  
+  
+  return(my_map)
+}
 
-new_df<-get_full_dataset()
-test<-new_df%>%filter(country=="Austria") %>%select(-1) %>% arrange(food_category)
-
-new_df%>% select(c(country,lat,lng)) %>% distinct()
-test$food_category[1]
-data_regions <- new_df%>%get_countries()
-
-mapStates <-maps::map("world",
-                      regions = data_regions$country,
-                      fill=T)
-
-
-my_map <-leaflet(data = mapStates, options = leafletOptions(minZoom = 2, maxZoom = 5)) %>%
-  addTiles() %>%
-  addPolygons(fillColor = topo.colors(10, alpha = NULL), stroke = FALSE) 
-#addMarkers(data = get_compromised_dataset(new_df),~lng,~lat,popup = generate_popup_content_view(country),options = popupOptions(closeButton = FALSE))
-
-x<-enrich_leaflet_map_with_markers(my_map)
+x<-generate_leaflet_map()
 x
