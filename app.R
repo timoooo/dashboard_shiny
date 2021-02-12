@@ -4,6 +4,12 @@ library(tidyverse)
 library(ggthemes)
 library(shinythemes)
 library(RColorBrewer)
+library(leaflet)
+library(maps)
+library(mapdata)
+library(ggplot2)
+library(plotly)
+library(devtools)
 
 get_countries <- function(df) {
   df <- df %>% select(country) %>% unique() %>% arrange(country)
@@ -36,7 +42,7 @@ enrich_data_with_countries <- function(df, countries) {
       lng = replace(lng, country == "USA", 114.109497),
       iso = replace(iso, country == "USA", "US"),
       lat = replace(lat, country == "Taiwan", 37.09024),
-      lng = replace(lng, country == "Taiwan",-95.712891),
+      lng = replace(lng, country == "Taiwan", -95.712891),
       iso = replace(iso, country == "Taiwan", "TW"),
       lat = as.numeric(lat),
       lng = as.numeric(lng)
@@ -305,7 +311,7 @@ get_top_10_by_by_efficiency <- function() {
 
 get_top_10_by_plot_consm <- function() {
   plot <-
-    get_top_10_by_consumption() %>% ggplot(aes(x = reorder(country, -sum_cons), sum_cons, fill = country)) +
+    get_top_10_by_consumption() %>% ggplot(aes(x = reorder(country,-sum_cons), sum_cons, fill = country)) +
     geom_bar(stat = "identity", width = 0.8) +
     theme(
       axis.title.x = element_blank(),
@@ -314,17 +320,29 @@ get_top_10_by_plot_consm <- function() {
       legend.title = element_blank(),
       
     ) + ylab("Summary of consumption") +
+    geom_text(aes(
+      x = country,
+      y = sum_cons + 7,
+      label = round(sum_cons, 1)
+    )) +
     theme_void()
   
   return(plot)
 }
 
-get_mean_df<-function() {
-  df<-get_full_dataset()
-  ret_df<-df%>%mutate(consumption=replace(consumption,consumption==0,NA),
-                      co2_emmission=replace(co2_emmission,co2_emmission==0,NA)) %>%
-    group_by(food_category)%>%
-    summarise(mean_cons=mean(consumption,na.rm=T),mean_co2=mean(co2_emmission,na.rm=T))
+get_mean_df <- function() {
+  df <- get_full_dataset()
+  ret_df <-
+    df %>% mutate(
+      consumption = replace(consumption, consumption == 0, NA),
+      co2_emmission = replace(co2_emmission, co2_emmission ==
+                                0, NA)
+    ) %>%
+    group_by(food_category) %>%
+    summarise(
+      consumption = mean(consumption, na.rm = T),
+      co2_emmission = mean(co2_emmission, na.rm = T)
+    )
   return(ret_df)
 }
 
@@ -334,7 +352,7 @@ get_top_10_by_plot_efficiency <- function() {
   plot <-
     get_top_10_by_by_efficiency() %>% ggplot(aes(
       y = efficiency,
-      x = reorder(country, -efficiency),
+      x = reorder(country,-efficiency),
       fill = country
     )) +
     geom_bar(stat = "identity", width = 0.8) +
@@ -345,6 +363,12 @@ get_top_10_by_plot_efficiency <- function() {
       legend.title = element_text("Most efficient countries"),
       
     ) + ylab("Efficiency (consumption/emmissions)") +
+    geom_text(aes(
+      x = country,
+      y = efficiency + 0.05,
+      label = round(efficiency, 1)
+    )) +
+    xlab("Countries") +
     theme_void()
   
   return(plot)
@@ -352,7 +376,7 @@ get_top_10_by_plot_efficiency <- function() {
 
 get_top_10_by_plot_co2 <- function() {
   plot <-
-    get_top_10_by_co2() %>% ggplot(aes(x = reorder(country, -sum_co2), sum_co2, fill = country)) +
+    get_top_10_by_co2() %>% ggplot(aes(x = reorder(country,-sum_co2), sum_co2, fill = country)) +
     geom_bar(stat = "identity", width = 0.8) +
     theme(
       axis.title.x = element_blank(),
@@ -361,6 +385,11 @@ get_top_10_by_plot_co2 <- function() {
       legend.title = element_blank(),
       
     ) + ylab("Summary of co2 emmission") +
+    geom_text(aes(
+      x = country,
+      y = sum_co2 + 12,
+      label = round(sum_co2, 1)
+    )) +
     theme_void()
   
   return(plot)
@@ -371,7 +400,7 @@ get_top_10_by_plot_co2 <- function() {
 # consumption in [kg/person/year]
 
 
-get_plot_for_country_pie_cons<- function(arg_country) {
+get_plot_for_country_pie_cons <- function(arg_country) {
   df <- get_full_dataset()
   ret_df <-
     df %>% filter(country == !!arg_country) %>% select(food_category, co2_emmission, consumption) %>% arrange(desc(consumption)) %>%
@@ -403,24 +432,34 @@ get_plot_for_country_pie_cons<- function(arg_country) {
 
 
 
-get_plot_for_country_bar_cons<- function(arg_country) {
+get_plot_for_country_bar_cons <- function(arg_country) {
   df <- get_full_dataset()
   ret_df <-
     df %>% filter(country == !!arg_country) %>% select(food_category, co2_emmission, consumption) %>% arrange(desc(consumption)) %>%
-    mutate(food_category = factor(food_category))
-  mean_df <- get_mean_df()
+    mutate(
+      food_category = factor(food_category),
+      cat = factor(!!arg_country)) %>% arrange(food_category)
   
-  full_df<-merge(ret_df,mean_df)
+  mean_df <- get_mean_df() %>% mutate(cat = as.factor("mean"))
+  full_df <- bind_rows(ret_df,mean_df)
   p <-
-    full_df %>% ggplot(aes(
+    full_df %>% ggplot() +
+    geom_bar(aes(
       y = consumption,
       x = reorder(food_category, consumption),
-      fill = food_category
-    )) +
-    geom_bar(width = 1,
-             stat = "identity",
-             color = "black",
-             position = "dodge") +
+      fill = food_category,
+      group=interaction(food_category,cat),fill=food_category,alpha=cat
+    ),
+      stat = "identity",
+      color = "black",
+      position = "dodge2",
+    width=1
+    )   + geom_text(aes(
+      x = food_category,
+      y = consumption + 7,
+      label = round(consumption, 2)
+    ),
+    position = position_dodge2(width=1,preserve = "single")) + 
     theme(
       axis.line = element_blank(),
       plot.title = element_text(hjust = 0.5),
@@ -431,15 +470,18 @@ get_plot_for_country_bar_cons<- function(arg_country) {
       legend.title = element_blank()
     ) +
     theme_void() +
-    scale_fill_discrete(name = "")+
-  labs(caption = "Consumption of a country in [kg/person/year]") +
-    theme_void()
+    scale_fill_discrete(name = "") +
+    labs(caption = "Consumption of a country in [kg/person/year]") +
+    theme_void() +
+    scale_alpha_manual(values = c(1, .4))
   
   return(p)
 }
 
+get_plot_for_country_bar_cons("Austria")
 
-get_plot_for_country_pie_co2<- function(arg_country) {
+
+get_plot_for_country_pie_co2 <- function(arg_country) {
   df <- get_full_dataset()
   ret_df <-
     df %>% filter(country == !!arg_country) %>% select(food_category, co2_emmission, consumption) %>% arrange(desc(consumption)) %>%
@@ -469,22 +511,35 @@ get_plot_for_country_pie_co2<- function(arg_country) {
   return(p)
 }
 
-get_plot_for_country_bar_co2<- function(arg_country) {
+get_plot_for_country_bar_co2 <- function(arg_country) {
   df <- get_full_dataset()
   ret_df <-
     df %>% filter(country == !!arg_country) %>% select(food_category, co2_emmission, consumption) %>% arrange(desc(consumption)) %>%
-    mutate(food_category = factor(food_category))
+    mutate(
+      food_category = factor(food_category),
+      cat = factor(!!arg_country)) %>% arrange(food_category)
+  
+  mean_df <- get_mean_df() %>% mutate(cat = as.factor("mean"))
+  full_df <- bind_rows(ret_df,mean_df)
   
   p <-
-    ret_df %>% ggplot(aes(
+    full_df %>% ggplot() +
+    geom_bar(aes(
       y = co2_emmission,
       x = reorder(food_category, co2_emmission),
-      fill = food_category
-    )) +
-    geom_bar(width = 1,
-             stat = "identity",
-             color = "black") +
-    geom_text(aes(x=food_category,y=co2_emmission+7,label=round(co2_emmission,1)))+
+      fill = food_category,
+      group=interaction(food_category,cat),alpha=cat
+    ),
+    stat = "identity",
+    color = "black",
+    position = "dodge2",
+    width=1) +
+    geom_text(aes(
+      x = food_category,
+      y = co2_emmission + 7,
+      label = round(co2_emmission, 2)),
+      position = position_dodge2(width=1,preserve = "single")
+      ) +
     theme(
       axis.line = element_blank(),
       plot.title = element_text(hjust = 0.5),
@@ -495,11 +550,12 @@ get_plot_for_country_bar_co2<- function(arg_country) {
       legend.title = element_blank()
     ) +
     theme_void() +
-    scale_fill_discrete(name = "")+
-    labs(caption = "CO2 emmissions of a country in [Kg CO2/person/year]") 
+    scale_fill_discrete(name = "") +
+    labs(caption = "CO2 emmissions of a country in [Kg CO2/person/year]")+
+    scale_alpha_manual(values = c(1, .4))
+  
   return(p)
 }
-
 
 
 
@@ -510,17 +566,17 @@ ui <- dashboardPage(
     menuItem(
       "Interactive Worldmap",
       tabName = "Worldmap",
-      icon = icon("dashboard")
+      icon = icon("map-signs")
     ),
     menuItem(
       "Top 10 countrys",
       tabName = "top10",
-      icon = icon("glyphicon glyphicon-equalizer")
+      icon = icon("not-equal")
     ),
     menuItem(
       "Country specific data",
       tabName = "countrydata",
-      icon = icon("glyphicon glyphicon-equalizer")
+      icon = icon("flag")
     )
   )),
   dashboardBody(tabItems(
@@ -576,10 +632,8 @@ ui <- dashboardPage(
         radioButtons(
           "radio1",
           h4("Chart types:"),
-          choices = list(
-            "Consumption" = 1,
-            "CO2 emmissions" = 2
-          ),
+          choices = list("Consumption" = 1,
+                         "CO2 emmissions" = 2),
           selected = 2
         )
       )
@@ -604,17 +658,17 @@ server <- function(input, output) {
   })
   
   output$country <- renderPlot({
-    if(input$radio1==1){
+    if (input$radio1 == 1) {
       return(get_plot_for_country_pie_cons(input$country))
-    }else {
+    } else {
       return(get_plot_for_country_pie_co2(input$country))
     }
   })
   
   output$country1 <- renderPlot({
-    if(input$radio1==1){
+    if (input$radio1 == 1) {
       return(get_plot_for_country_bar_cons(input$country))
-    }else {
+    } else {
       return(get_plot_for_country_bar_co2(input$country))
     }
   })
