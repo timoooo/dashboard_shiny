@@ -57,7 +57,7 @@ get_full_dataset <- function() {
   )
   
   countries <-
-    readr::read_delim("/home/tmo/Projects/dashboard_shiny/countries.csv",
+    readr::read_delim("countries.csv",
                       "\t") %>% rename(
                         iso = `country `,
                         lat = `latitude `,
